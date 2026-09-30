@@ -79,7 +79,7 @@ links and view data.
 | AI replies | OpenAI-compatible APIs, model discovery, end-to-end connection testing, custom prompts, bargaining rounds, and discount limits. |
 | Notifications | Bark, DingTalk, Feishu, WeCom, Telegram, email, and custom Webhooks. |
 | Storage and security | SQLite/MySQL/PostgreSQL, embedded Goose migrations, AES-256-GCM sensitive-field encryption, log redaction, and outbound-address validation. |
-| Container deployment | PostgreSQL 17, health checks, persistent volumes, and multi-architecture GHCR images. |
+| Container deployment | BaoTa-hosted PostgreSQL 17, application health checks, persistent application volumes, and multi-architecture GHCR images. |
 
 ## Architecture
 
@@ -128,14 +128,11 @@ cd Ydisks-Xianyu-Helper
 cp .env.example .env
 ~~~
 
-Set at least POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, DATABASE_URL, XIANYU_DATA_KEY, and
-XIANYU_ADMIN_PASSWORD in .env:
+Create a dedicated `xianyu` database and user in BaoTa PostgreSQL first. Allow the Docker bridge network to reach
+PostgreSQL, then set at least DATABASE_URL, XIANYU_DATA_KEY, and XIANYU_ADMIN_PASSWORD in .env:
 
 ~~~dotenv
-POSTGRES_DB=xianyu
-POSTGRES_USER=xianyu
-POSTGRES_PASSWORD=replace-with-a-strong-password
-DATABASE_URL=postgres://xianyu:url-encoded-password@postgres:5432/xianyu?sslmode=disable
+DATABASE_URL=postgres://xianyu:url-encoded-password@host.docker.internal:5432/xianyu?sslmode=disable
 XIANYU_DATA_KEY=replace-with-a-long-lived-random-key
 XIANYU_ADMIN_PASSWORD=replace-with-an-admin-password
 ~~~
@@ -147,14 +144,15 @@ openssl rand -hex 24
 openssl rand -base64 48
 ~~~
 
-Start the application and PostgreSQL:
+Start the application after BaoTa PostgreSQL is running:
 
 ~~~bash
 docker compose up -d
 ~~~
 
-Open http://localhost:59188 and sign in as admin with the configured administrator password. The Compose file uses
-persistent PostgreSQL, application-data, and browser-data volumes. Back up the database and .env before upgrading.
+Open http://localhost:59188 and sign in as admin with the configured administrator password. The Compose file maps
+`host.docker.internal` to the Linux host gateway and persists application and browser data; PostgreSQL lifecycle and
+backups remain managed by BaoTa. Back up the database and .env before upgrading.
 
 GHCR images can be pulled anonymously when public. If the image is private, log in to ghcr.io with a Personal Access
 Token that has read:packages permission.
@@ -265,8 +263,8 @@ Important environment variables:
 | XIANYU_PENDING_SHIP_CATCHUP | enabled | Stop pending-shipment catch-up and checkpoint-resume scans by setting it to `0`. |
 | XIANYU_CONTINUE_AFTER_UNCERTAIN | enabled | Allow idempotent state actions after an uncertain message action; set it to `0` to keep the circuit breaker closed. |
 
-Docker Compose also supports COMPOSE_PROJECT_NAME, POSTGRES_IMAGE, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD,
-XIANYU_IMAGE, XIANYU_BIND_ADDRESS, and XIANYU_HTTP_PORT. Pin XIANYU_IMAGE to a release or SHA tag in production.
+Docker Compose also supports COMPOSE_PROJECT_NAME, XIANYU_IMAGE, XIANYU_BIND_ADDRESS, and XIANYU_HTTP_PORT. Pin
+XIANYU_IMAGE to a release or SHA tag in production.
 
 The main command-line options are -db, -db-url, -addr, -web, -workdir, -playwright-runtime-root,
 -playwright-driver-dir, -playwright-browser-dir, -data-key-file, -secure, -no-browser, -log-level, -log-format, -v,
@@ -305,19 +303,16 @@ docker compose up -d
 docker compose logs --tail=100 app
 ~~~
 
-PostgreSQL backup:
+PostgreSQL backup (run on the BaoTa host; the command prompts for the database password):
 
 ~~~bash
-set -a
-. ./.env
-set +a
-docker compose exec -T postgres pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+pg_dump -h 127.0.0.1 -U xianyu -d xianyu \
   > "xianyu-$(date +%Y%m%d-%H%M%S).sql"
 ~~~
 
-Restore only after stopping app and validating the backup. docker compose down retains volumes; do not use down -v
-in production because it deletes database and application-data volumes. Use Caddy, Nginx, Traefik, or a cloud
-load balancer for HTTPS and add -secure to the application command.
+Restore only after stopping app and validating the backup. `docker compose down` retains the application and browser
+volumes and does not manage the BaoTa PostgreSQL service. Use Caddy, Nginx, Traefik, or a cloud load balancer for
+HTTPS and add -secure to the application command.
 
 ## Development
 
@@ -369,8 +364,9 @@ go run ./cmd/server -init-admin -db data/xianyu_data.db -admin-password 'new-pas
 
 ### PostgreSQL connection
 
-Confirm that POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, and DATABASE_URL match. The Compose hostname is postgres,
-not localhost. URL-encode password characters such as @, :, /, and #. Confirm PostgreSQL health with docker compose ps.
+Confirm that DATABASE_URL matches the database and user created in BaoTa. The application container reaches the
+host through `host.docker.internal`, not `localhost`. URL-encode password characters such as @, :, /, and #. Also
+confirm PostgreSQL listens on the Docker bridge interface and `pg_hba.conf` permits the actual Docker subnet.
 
 ### Chromium or Playwright
 

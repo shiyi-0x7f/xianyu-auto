@@ -7,24 +7,28 @@
 | Scenario | Recommendation | Reason |
 | --- | --- | --- |
 | Local trial or low-frequency single-user use | SQLite | No extra service; the database is one file. |
-| Docker production deployment | PostgreSQL 17 | The default Compose file provides the service, persistent volume, and health check. |
+| BaoTa Docker production deployment | PostgreSQL 17 | Reuses BaoTa database backups, monitoring, and permissions while Docker runs only the application. |
 | Existing MySQL operations | MySQL 8+ | Reuses existing backups, monitoring, and permission management. |
 | Multiple users or long-running service | PostgreSQL / MySQL | Better suited to concurrency, backups, and independent operations. |
 
 All three databases run embedded migrations automatically at application startup. Connection precedence is `DATABASE_URL` > `-db-url` > `-db`. Back up a production database before upgrading it.
 
-## Docker + PostgreSQL (recommended)
+## Docker + BaoTa PostgreSQL (recommended)
 
-1. Copy configuration: `cp .env.example .env`.
-2. Edit `.env` and set at least `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `XIANYU_DATA_KEY`, and `XIANYU_ADMIN_PASSWORD`.
-3. Generate one long-lived random value for `XIANYU_DATA_KEY`, for example `openssl rand -base64 48`; do not change it during later upgrades.
-4. Start: `docker compose up -d`.
-5. Inspect: `docker compose ps` and `docker compose logs -f app`.
-6. Open `http://server-address:59188`. With `XIANYU_ADMIN_PASSWORD`, Compose creates `admin` automatically on first startup. Other startup methods show the initialization form when the database has no administrator; enter and confirm a password of at least eight characters.
+1. Create a dedicated `xianyu` database and `xianyu` user in BaoTa PostgreSQL 17, granting only the required database privileges.
+2. Make PostgreSQL listen on an address reachable from the Docker bridge and permit only the server's actual Docker subnet in `pg_hba.conf`; do not expose port 5432 publicly.
+3. Copy configuration: `cp .env.example .env`.
+4. Edit `.env` and set `DATABASE_URL`, `XIANYU_DATA_KEY`, and `XIANYU_ADMIN_PASSWORD`. URL-encode the database password.
+5. Generate one long-lived random value for `XIANYU_DATA_KEY`, for example `openssl rand -base64 48`; do not change it during later upgrades.
+6. Start: `docker compose up -d`.
+7. Inspect: `docker compose ps` and `docker compose logs -f app`.
+8. Open `http://server-address:59188`. With `XIANYU_ADMIN_PASSWORD`, Compose creates `admin` automatically on first startup. Other startup methods show the initialization form when the database has no administrator; enter and confirm a password of at least eight characters.
 
 > Security: source and container examples using `-addr :59188` listen on all interfaces. Before initialization there is no pre-shared secret, so the first client reaching the management port can create the administrator. This convenience flow does not restrict by IP. Restrict access at the firewall, security group, or reverse proxy; for public deployments, set `XIANYU_ADMIN_PASSWORD` or initialize with `-init-admin` first.
 
-Compose injects the default connection, so a PostgreSQL URL is not required. Changing `COMPOSE_PROJECT_NAME` changes the new volume prefix; keep the existing `.env` during upgrades to avoid accidentally using an empty new volume.
+`compose.yml` maps `host.docker.internal` to the Linux host gateway, and the application container uses that hostname
+to reach BaoTa PostgreSQL; do not use `localhost` in `DATABASE_URL`. Compose does not create, start, or remove the
+database. BaoTa remains responsible for its lifecycle, backups, and restores.
 
 Automatic renewal in Docker uses the Linux-native browser fingerprint detected by Chromium inside the container when requesting Xianyu. It does not skip silent renewal just because the host is Linux. The result still depends on the Xianyu response and account login state.
 
@@ -145,10 +149,10 @@ When an administrator already exists, ensure it exists without resetting its pas
 go run ./cmd/server -ensure-admin -admin-password 'strong-password'
 ```
 
-PostgreSQL backup example:
+PostgreSQL backup example (run on the BaoTa host; the command prompts for the database password):
 
 ```bash
-docker compose exec -T postgres pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+pg_dump -h 127.0.0.1 -U xianyu -d xianyu \
   > ydisks-backup.sql
 ```
 

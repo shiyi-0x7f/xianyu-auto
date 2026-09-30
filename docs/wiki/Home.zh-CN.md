@@ -8,7 +8,7 @@
 ## 推荐上线路径
 
 1. 选择部署方式：Docker Compose、Linux 安装包、Windows 安装包、macOS 安装包或源码运行。
-2. Docker Compose 设置 `POSTGRES_*`、`DATABASE_URL`、`XIANYU_DATA_KEY` 和
+2. Docker Compose 使用宝塔 PostgreSQL 时设置 `DATABASE_URL`、`XIANYU_DATA_KEY` 和
    `XIANYU_ADMIN_PASSWORD`；其他方式启动服务后打开管理页面，在首次初始化页面填写密码。
 3. 设置并备份 `XIANYU_DATA_KEY`；默认管理员用户名为 `admin`。
 4. 在“账号管理”扫码接入账号，确认账号为启用且在线状态。

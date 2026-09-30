@@ -7,7 +7,7 @@ This Wiki is for operators of the management console. Start with [Deployment and
 ## Recommended launch path
 
 1. Choose a deployment method: Docker Compose, a Linux package, a Windows package, a macOS package, or source execution.
-2. For Docker Compose, set `POSTGRES_*`, `DATABASE_URL`, `XIANYU_DATA_KEY`, and `XIANYU_ADMIN_PASSWORD`. For other methods, open the management page after starting the service and set the password on the first-run initialization page.
+2. For Docker Compose with BaoTa PostgreSQL, set `DATABASE_URL`, `XIANYU_DATA_KEY`, and `XIANYU_ADMIN_PASSWORD`. For other methods, open the management page after starting the service and set the password on the first-run initialization page.
 3. Set and back up `XIANYU_DATA_KEY`; the default administrator username is `admin`.
 4. Use QR login in Account Management and confirm that the account is enabled and online.
 5. Create the content to be delivered in Card Inventory.
